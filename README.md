@@ -75,6 +75,8 @@ A newly terminal payment creates a SQLite **payment_webhook_outbox** entry throu
 
 This mitigation does **not** resolve alert spoofing, UPI settlement validation, late and misattributed credits, legal/regulatory obligations, refund disputes or full production readiness.
 
+For the implementation status and residual risk register, see [SECURITY_AUDIT.md](SECURITY_AUDIT.md).
+
 ### Before any deployment
 
 - Run `npm test` and review the CI results; perform controlled crash/restart and observation-replay testing using synthetic data.
@@ -209,7 +211,7 @@ Rebrand the checkout portal completely through the Merchant Admin Panel:
 ### 8.  5 Standardized Merchant Outcome Pages
 The application includes the following customer outcome pages:
 - `/order-success` — Payment verified by observers, order marked paid and provisioned.
-- `/order-failed` — Verification timed out, reassuring customer no money was lost.
+- `/order-failed` — Verification timed out; payment may still settle, so provide reconciliation/support rather than claiming no money was lost.
 - `/order-suspicious` — Flagged by fraud heuristics, held for manual compliance review.
 - `/order-expired` — 5-minute session elapsed, slot released for queued customers.
 - `/order-cancelled` — Customer cancelled checkout session.
