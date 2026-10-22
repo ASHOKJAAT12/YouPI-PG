@@ -95,3 +95,29 @@ test('interrupted first attempt remains eligible for restart retry with the same
     db.close();
   }
 });
+
+test('missing merchant signing key preserves an outboxed event until configuration is repaired', async () => {
+  const { db, sessions, merchant, engine, merchants } = fixture('durable-key-rotation');
+  const previousFetch = globalThis.fetch;
+  try {
+    const session = sessions.create({ merchantId: merchant.id, orderId: 'DURABLE-3', amountPaise: 300n, status: 'ACTIVE' });
+    sessions.transitionToTerminal(session.id, 'EXPIRED');
+    db.execute("UPDATE merchants SET webhook_secret = '' WHERE id = ?", [merchant.id]);
+    assert.equal((await engine.recoverOutbox()).length, 0);
+    assert.equal(db.queryOne('SELECT COUNT(*) AS n FROM webhook_deliveries WHERE payment_id = ?', [session.id]).n, 0);
+    assert.equal(db.queryOne('SELECT COUNT(*) AS n FROM payment_webhook_outbox WHERE payment_id = ?', [session.id]).n, 1);
+    merchants.update(merchant.id, { webhookSecret: 'newly_rotated_synthetic_test_secret' });
+    let attempted = 0;
+    globalThis.fetch = async () => {
+      attempted++;
+      return { ok: true, status: 200, text: async () => 'ok' };
+    };
+    const replayed = await engine.recoverOutbox();
+    assert.equal(replayed.length, 1);
+    assert.equal(replayed[0].delivered, true);
+    assert.equal(attempted, 1);
+  } finally {
+    globalThis.fetch = previousFetch;
+    db.close();
+  }
+});

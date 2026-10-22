@@ -43,8 +43,19 @@ export class WebhookEngine {
       return { delivered: Boolean(prior.is_successful), deliveryId: prior.id, status: prior.response_status, error: prior.is_successful ? undefined : prior.response_body };
     }
 
-    // 1. Up-front secret validation: if webhookSecret is missing, persist a failed row so it is auditable
+    // Terminal transitions already have a durable outbox entry. If configuration
+    // is missing or unsafe, KEEP that entry instead of recording an irrecoverable
+    // synthetic failure row; the operator can repair configuration and replay.
+    const isOutboxed = Boolean(this.db.queryOne(
+      'SELECT payment_id FROM payment_webhook_outbox WHERE payment_id = ?',
+      [session.id]
+    ));
+
+    // Direct non-outboxed dispatches still write an auditable failure record.
     if (!merchant.webhookSecret) {
+      if (isOutboxed) {
+        return { delivered: false, deliveryId: '', status: 500, error: 'Merchant webhookSecret is not configured.' };
+      }
       const deliveryId = crypto.randomUUID();
       this.db.execute(`
         INSERT INTO webhook_deliveries (
@@ -66,6 +77,9 @@ export class WebhookEngine {
     // 2. Re-validate at dispatch time (SSRF guard)
     const endpointCheck = validateOutboundWebhookUrl(merchant.webhookUrl);
     if (!endpointCheck.valid) {
+      if (isOutboxed) {
+        return { delivered: false, deliveryId: '', status: 400, error: `Webhook delivery blocked: ${endpointCheck.error}` };
+      }
       const deliveryId = crypto.randomUUID();
       this.db.execute(`
         INSERT INTO webhook_deliveries (
