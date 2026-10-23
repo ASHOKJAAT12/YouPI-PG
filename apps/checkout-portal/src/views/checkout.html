@@ -2292,18 +2292,32 @@
       }, 400);
     }
 
+    function sanitizeUpiUri(raw) {
+      if (typeof raw !== 'string') return null;
+      const trimmed = raw.trim();
+      if (!trimmed.toLowerCase().startsWith('upi://pay?')) return null;
+      // Allow only valid URI characters for upi:// scheme to prevent injection
+      if (!/^upi:\/\/pay\?[a-zA-Z0-9_\-\.\=\&\%\+\:\@\/]*$/i.test(trimmed)) return null;
+      return trimmed;
+    }
+
     function getUpiIntentUri() {
-      if (state && state.upiUri) return state.upiUri;
-      const vpa = state?.payeeVpa || state?.vpa || 'merchant@upi';
-      const name = state?.merchantName || 'Store';
-      const amt = state?.amount || '10.00';
-      return `upi://pay?pa=${encodeURIComponent(vpa)}&pn=${encodeURIComponent(name)}&am=${encodeURIComponent(amt)}&tn=${encodeURIComponent(PAYMENT_ID)}`;
+      if (state && typeof state.upiUri === 'string') {
+        const sanitized = sanitizeUpiUri(state.upiUri);
+        if (sanitized) return sanitized;
+      }
+      const vpa = encodeURIComponent(String(state?.payeeVpa || state?.vpa || 'merchant@upi').trim());
+      const name = encodeURIComponent(String(state?.merchantName || 'Store').trim());
+      const amt = encodeURIComponent(String(state?.amount || '10.00').trim());
+      const tid = encodeURIComponent(String(PAYMENT_ID || '').trim());
+      return sanitizeUpiUri(`upi://pay?pa=${vpa}&pn=${name}&am=${amt}&tn=${tid}`);
     }
 
     function handleOpenUpiIntent() {
       const uri = getUpiIntentUri();
+      if (!uri) return;
       try {
-        window.location.href = uri;
+        window.location.assign(uri);
       } catch (err) {
         console.warn('Could not launch UPI intent:', err);
       }
