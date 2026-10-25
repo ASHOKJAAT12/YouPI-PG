@@ -2028,6 +2028,9 @@
           if (window.isAutoBindingSession || !PAYMENT_ID || !token || !customerId) return;
           window.isAutoBindingSession = true;
           try {
+            if (!DeviceIdentity.deviceId || !DeviceIdentity.deviceToken) {
+              await DeviceIdentity.getOrRegister();
+            }
             const res = await fetch(`${API_BASE}/api/v1/checkout/${PAYMENT_ID}/bind-customer`, {
               method: 'POST',
               headers: getApiHeaders({
@@ -2057,18 +2060,27 @@
       }
 
       // 3. Pre-Gateway Customer Authentication Gate (Preserves identity up to 1 week)
+      const preserved = getPreservedIdentity();
+      if (preserved && preserved.token && !activeToken) {
+        activeToken = preserved.token;
+      }
       if (data.customer) {
         activeCustomer = data.customer;
-      } else if (!activeCustomer) {
-        const preserved = getPreservedIdentity();
-        if (preserved && preserved.customer) {
-          activeCustomer = preserved.customer;
-          activeToken = preserved.token || activeToken;
-        }
+      } else if (!activeCustomer && preserved && preserved.customer) {
+        activeCustomer = preserved.customer;
       }
-      const hasCustomer = Boolean(data.customer || activeCustomer);
+      const hasCustomer = Boolean(
+        (data.customer || activeCustomer) &&
+        (data.status !== 'INITIATED' || Boolean(activeToken))
+      );
 
       if (!hasCustomer) {
+        if (data.customer && data.customer.phone) {
+          const mobInput = document.getElementById('authMobileInput');
+          if (mobInput && !mobInput.value) {
+            mobInput.value = String(data.customer.phone).replace(/\D/g, '').slice(-10);
+          }
+        }
         setGatewayAuthMode(true);
         const stepMob = document.getElementById('authStepMobile');
         const isAlreadyOnMobile = stepMob && !stepMob.hidden;
@@ -2121,7 +2133,7 @@
         queuePollTimer = null;
       }
 
-      if (data.status === 'ACTIVE' || (data.status === 'INITIATED' && (data.timeRemainingSeconds > 0 || data.expiresAt))) {
+      if (data.status === 'ACTIVE' || data.status === 'INITIATED') {
         renderMethodSelectorBar(data);
 
         hideAllContent();

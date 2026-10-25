@@ -116,12 +116,19 @@ export function createPaymentApp(customDb = null, options = {}) {
     eventEmitter
   });
 
+  const webhookEngine = new WebhookEngine({
+    db,
+    merchantRepo,
+    maxRetries: Number(process.env.WEBHOOK_MAX_RETRIES || 5)
+  });
+
   const recoveryEngine = new RecoveryEngine({
     db,
     sessionRepo,
     accountRepo,
     queueEngine,
     timingEngine,
+    webhookEngine,
     auditRepo,
     eventEmitter
   });
@@ -378,12 +385,18 @@ export function createPaymentApp(customDb = null, options = {}) {
     gmailBaseUrl: process.env.GMAIL_OBSERVER_URL
   });
 
-  // Execute crash recovery on boot
+  // Execute crash recovery on boot (AFTER event listeners are wired so recovered terminal transitions emit webhooks)
   const recoveryStats = recoveryEngine.recover();
   // Replay only outboxed transitions that lack a durable delivery record.
   webhookEngine.recoverOutbox().catch(err => {
     console.error('[webhook] Failed to recover terminal-event outbox:', err.message);
   });
+
+  // Immediately kick off a background retry sweep for any recovered in-flight or backfilled webhooks
+  try {
+    const initialRetry = webhookEngine.retryPending();
+    if (initialRetry && typeof initialRetry.catch === 'function') initialRetry.catch(() => {});
+  } catch {}
 
   // Health check routes
   const healthHandler = (req, res) => {
