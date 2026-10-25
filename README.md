@@ -190,12 +190,12 @@ Dual backup observation channels:
 
 ### 7. White-Label Configuration
 
-Rebrand the checkout portal completely through the Merchant Admin Panel:
+Rebrand the checkout portal completely through environment variables or the Merchant Admin Panel:
 
-- Custom app name, logo URL, and browser favicon.
-- Tailored color palettes, custom gradients, and trust badges.
-- Custom domain binding via Cloudflare Tunnels (`pay.yourbrand.com`).
-- Complete removal of any "Powered by YouPI PG" attribution.
+- **Global Environment Variables (`.env`)**: Configure gateway-wide defaults via `DEFAULT_APP_NAME`, `DEFAULT_PRIMARY_COLOR`, `DEFAULT_SUPPORT_EMAIL`, `DEFAULT_SUPPORT_PHONE`, `DEFAULT_LOGO_URL`, `DEFAULT_FOOTER_GUARANTEE`, and `WHATSAPP_SENDER_NAME`.
+- **Per-Merchant Admin Customizer**: Override app name, logo URL, color theme, and custom instructions live from the admin dashboard without server restarts.
+- **Custom domain binding**: Dynamic multi-subdomain routing via Cloudflare Tunnels (`pay.yourbrand.com`).
+- **Complete white-labeling**: `DEFAULT_HIDE_POWERED_BY=true` completely eliminates any default platform attribution.
 
 ### 8. 5 Standardized Merchant Outcome Pages
 
@@ -247,7 +247,8 @@ This section is a practical project warning, not a certification, compliance che
 
 ### Prerequisites
 
-- **Node.js `>= 24.22.1` Active LTS ("Krypton")** (verify with `node -v`) for native `node:sqlite` (`DatabaseSync` Release Candidate with defensive mode enabled) and hardened protection against October 2026 security advisories (CVE-2026-111497 Brotli RCE, CVE-2026-105482 DNS truncation, and CVE-2026-105483 TLS bypass).
+- **Node.js `>= 22.13.0` LTS** (Recommended: Node 24 LTS, `node -v`) for native `node:sqlite` (`DatabaseSync`) engine.
+  `node:sqlite` was added in Node 22.5.0 but only unflagged in **22.13.0**, so 22.5.0–22.12.x cannot run this project without `--experimental-sqlite`.
 - Standard Linux, macOS, or Windows host
 - _External database services (PostgreSQL/Redis) are completely optional!_
 
@@ -540,39 +541,38 @@ func youpiWebhookHandler(w http.ResponseWriter, r *http.Request) {
 
 YOUPI PG confirms payments without expensive commercial banking APIs using a triple-layer observation pipeline:
 
-```mermaid
-flowchart TD
-    Customer["Customer Scans & Pays via UPI"]
-    Bank["Receiving Bank Account"]
-
-    Customer --> Bank
-
-    subgraph Alerts["Bank Notification Broadcast Channels"]
-        SMS["Cellular SMS Alert on SIM"]
-        Push["Bank Push Notification"]
-        Gmail["Gmail Credit Alert Email"]
-    end
-
-    Bank --> SMS
-    Bank --> Push
-    Bank --> Gmail
-
-    subgraph Observers["Sovereign Banking Observers"]
-        AndroidAPK["Native Android Observer APK<br/>com.youpi.observer (Foreground)<br/>HMAC-SHA256 Signed Payload"]
-        GmailNode["Gmail Observer Node (Port 6003)<br/>Google Cloud OAuth2 & Web CDP"]
-    end
-
-    SMS --> AndroidAPK
-    Push --> AndroidAPK
-    Gmail --> GmailNode
-
-    Core["Payment Core REST Engine (Port 6100)<br/>Exact Amount & UTR Normalization"]
-
-    AndroidAPK -->|"POST /api/v1/observers/sms (Signed)"| Core
-    GmailNode -->|"POST /api/v1/observers/gmail"| Core
-
-    Success["Payment Status: SUCCESS<br/>Authoritative Webhook Dispatched"]
-    Core --> Success
+```text
+              CUSTOMER SCANS & PAYS VIA UPI
+                           │
+                           ▼
+                 RECEIVING BANK ACCOUNT
+                           │
+        ┌──────────────────┼──────────────────┐
+        ▼                  ▼                  ▼
+┌───────────────┐  ┌───────────────┐  ┌───────────────┐
+│  CELLULAR SMS │  │   BANK PUSH   │  │  GMAIL CREDIT │
+│  ALERT ON SIM │  │ NOTIFICATION  │  │  ALERT EMAIL  │
+└───────┬───────┘  └───────┬───────┘  └───────┬───────┘
+        │                  │                  │
+        ▼                  ▼                  │
+┌──────────────────────────────────┐          │
+│    NATIVE ANDROID OBSERVER APK   │          │
+│  com.youpi.observer (Foreground) │          │
+│     HMAC-SHA256 Signed Payload   │          │
+└─────────────────┬────────────────┘          │
+                  │                           ▼
+                  │                 ┌───────────────────┐
+                  │                 │   GMAIL OBSERVER  │
+                  │                 │ Google Cloud API  │
+                  │                 └─────────┬─────────┘
+                  │                           │
+                  └─────────────┬─────────────┘
+                                ▼
+                   PAYMENT CORE REST ENGINE
+               Exact Amount & UTR Normalization
+                                │
+                                ▼
+                       SUCCESS CONFIRMED
 ```
 
 1. **Android Observer App:** Install [`apps/android-observer-app/youpi-sms-gateway.apk`](apps/android-observer-app/youpi-sms-gateway.apk) (Certified SHA-256: `959218223e75da4784744c16afaf7bc121cff377dff04f041875237042f51601`) on any secondary Android smartphone with the receiving bank SIM. Scan the pairing QR code in Merchant Admin to establish an encrypted HMAC link.

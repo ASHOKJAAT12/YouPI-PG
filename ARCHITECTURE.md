@@ -3,7 +3,7 @@
 > **YOUPI PG V2**  
 > _Sovereign • Self-Hosted • Zero-Fee • Deterministic UPI Payment Gateway Suite_  
 > **Architecture Reference:** Production Specification V2  
-> **Runtime Target:** Node.js `>= 24.22.1` Active LTS ("Krypton", ESM Native) • SQLite WAL • Android Kotlin
+> **Runtime Target:** Node.js `>= 20.0.0` (ESM Native) • SQLite WAL • Android Kotlin
 
 ---
 
@@ -150,20 +150,17 @@ flowchart TB
     QueueEngine --> SQLiteDB
     TimingEngine --> SQLiteDB
 
-    AndroidAPK -->|"POST /api/v1/observers/sms (Signed)"| APIEndpoints
-    GmailObserver -->|"POST /api/v1/observers/gmail"| APIEndpoints
-    SMSObserver -->|"POST /api/v1/observers/sms"| APIEndpoints
+    AndroidAPK -->|POST /api/v1/observers/sms (Signed)| APIEndpoints
+    GmailObserver -->|POST /api/v1/observers/gmail| APIEndpoints
+    SMSObserver -->|POST /api/v1/observers/sms| APIEndpoints
 
     AttributionEngine --> SQLiteDB
     AttributionEngine --> WebhookEngine
     WebhookEngine -->|Signed HMAC Webhook| MerchantStore
 
-    ControlCenter -.->|Supervises PIDs| APIEndpoints
-    ControlCenter -.->|Supervises PIDs| CheckoutPortal
-    ControlCenter -.->|Supervises PIDs| AdminDashboard
-    ControlCenter -.->|Supervises PIDs| DemoStore
-    ControlCenter -.->|Supervises PIDs| SMSObserver
-    ControlCenter -.->|Supervises PIDs| GmailObserver
+    ControlCenter -.->|Supervises PIDs| CoreBackend
+    ControlCenter -.->|Supervises PIDs| GatewayFrontend
+    ControlCenter -.->|Supervises PIDs| ObservationMesh
 ```
 
 ---
@@ -276,17 +273,17 @@ Every incoming observation passes through `ObservationNormalizer`:
 ### 4.4 Dual Operational Modalities
 
 ```mermaid
-flowchart TD
-    GatewayMode["Operational Modality"]
+graph TD
+    GatewayMode[Operational Modality]
 
-    GatewayMode --> OnlineMode["Online Selling Mode"]
-    OnlineMode --> OnlineUPI["UPI Vector QR Code"]
-    OnlineMode --> OnlineCOD["Cash on Delivery (WhatsApp Pre-Verified)"]
+    GatewayMode --> OnlineMode[Online Selling Mode]
+    OnlineMode --> OnlineUPI[UPI Vector QR Code]
+    OnlineMode --> OnlineCOD[Cash on Delivery with WhatsApp Pre-Verification]
 
-    GatewayMode --> OfflineMode["Offline Store Counter Mode"]
-    OfflineMode --> OfflineUPI["Customer-Facing Dynamic QR"]
-    OfflineMode --> OfflineCash["Cash at Till Desk (CASH_COUNTER)"]
-    OfflineMode --> OfflineCard["Card at POS Terminal (CARD_COUNTER)"]
+    GatewayMode --> OfflineMode[Offline Store Counter Mode]
+    OfflineMode --> OfflineUPI[Customer-Facing Dynamic QR]
+    OfflineMode --> OfflineCash[Cash at Till Desk - CASH_COUNTER]
+    OfflineMode --> OfflineCard[Card at POS Terminal - CARD_COUNTER]
 ```
 
 1. **Online Selling Mode:**
@@ -409,14 +406,20 @@ To prevent broken 404 links and inconsistent customer experiences, YOUPI PG prov
 
 ### 4.7 White-Label Customization Engine
 
-Configured via Tab 5 of the Merchant Admin dashboard and persisted in `merchants.branding` JSON:
+YOUPI PG implements a **3-Tier Hierarchical Branding Engine** ensuring platform instances can be fully customized or whitelisted per merchant:
+
+1. **Tier 1 (Global Environment Defaults):** Configured via `.env` (`DEFAULT_APP_NAME`, `DEFAULT_PRIMARY_COLOR`, `DEFAULT_SUPPORT_EMAIL`, `DEFAULT_SUPPORT_PHONE`, `DEFAULT_LOGO_URL`, `DEFAULT_TRUST_BADGE_TEXT`, `DEFAULT_FOOTER_GUARANTEE`, `WHATSAPP_SENDER_NAME`).
+2. **Tier 2 (Per-Merchant Database Record):** Configured via Tab 5 of the Merchant Admin dashboard and persisted in `merchants.branding` JSON (`appName`, `primaryColor`, `logoUrl`, `customCss`, etc.).
+3. **Tier 3 (Runtime Session Resolution):** Cascades dynamically: `session.branding || merchant.branding || env.DEFAULT_* || 'YOUPI PG'`.
+
+Key capabilities:
 
 - **Merchant Brand Name & Subtitle**
-- **Custom Logo URL & Favicon**
+- **Custom Logo URL & Dynamic Monogram Fallback**
 - **Custom Accent Color (`--primary`) & Header Gradients**
 - **Trust Badges & Security Sub-banners**
 - **Cloudflare Tunnel Custom Domain Binding (`pay.yourdomain.com`)**
-- **Complete Removal of "Powered by YouPI PG" Attribution**
+- **Complete Elimination of Default Platform Attribution (`DEFAULT_HIDE_POWERED_BY=true`)**
 
 ---
 
@@ -461,7 +464,7 @@ YOUPI PG enforces zero regression via a unified test runner:
 node scripts/test-all.js
 ```
 
-The suite executes **39 curated test suites** across packages, applications, and chaos-concurrency harnesses in under 18 seconds:
+The suite executes **39 curated test suites** across packages, applications, and chaos-concurrency harnesses in under 35 seconds:
 
 - **Common & Contracts:** Types, enums, paise minor units, UPI URIs, crypto builders.
 - **Database & Repositories:** SQLite migrations, foreign keys, transaction rollbacks, auth matrix.
