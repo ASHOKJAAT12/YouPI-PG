@@ -472,6 +472,9 @@ export function registerCheckoutRoutes(server, ctx) {
         amountPaise: session.amountPaise.toString(),
         currency: session.currency,
         status: session.status,
+        method: session.method,
+        verificationTag: session.verificationTag || 'UNVERIFIED',
+        returnUrl: session.returnUrl || null,
         timeRemainingSeconds: 0,
         isTerminal: true,
         // The return URL belongs to the terminal payload too. The checkout
