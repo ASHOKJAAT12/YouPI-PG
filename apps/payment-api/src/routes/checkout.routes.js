@@ -472,6 +472,9 @@ export function registerCheckoutRoutes(server, ctx) {
         amountPaise: session.amountPaise.toString(),
         currency: session.currency,
         status: session.status,
+        method: session.method,
+        verificationTag: session.verificationTag || 'UNVERIFIED',
+        returnUrl: session.returnUrl || null,
         timeRemainingSeconds: 0,
         isTerminal: true,
         // The return URL belongs to the terminal payload too. The checkout
@@ -869,7 +872,7 @@ export function registerCheckoutRoutes(server, ctx) {
     let queueResult = { status: session.status, queuePosition: session.queuePosition, expiresAt: session.expiresAt };
     const targetAccountId = session.receivingAccountId || ctx.accountRepo?.findActiveForMerchant(session.merchantId)?.id || session.metadata?.receivingAccountSnapshot?.id;
     if (!hasActiveSessionConflict && session.status === PaymentStatus.INITIATED && targetAccountId) {
-      queueResult = ctx.queueEngine.enqueueOrActivate(session.id, targetAccountId);
+      queueResult = ctx.queueEngine.enqueueOrActivate(session.id, targetAccountId, ctx.timingEngine?.activeDurationMs || 300000);
       if (queueResult.expiresAt) {
         ctx.timingEngine.startActiveTimer(session.id, queueResult.expiresAt);
       }
@@ -1004,7 +1007,7 @@ export function registerCheckoutRoutes(server, ctx) {
     // Now activate current session immediately on the newly freed slot
     let queueResult = { status: session.status, queuePosition: session.queuePosition, expiresAt: session.expiresAt };
     if (targetAccountId) {
-      queueResult = ctx.queueEngine.enqueueOrActivate(session.id, targetAccountId);
+      queueResult = ctx.queueEngine.enqueueOrActivate(session.id, targetAccountId, ctx.timingEngine?.activeDurationMs || 300000);
       if (queueResult.expiresAt) {
         ctx.timingEngine.startActiveTimer(session.id, queueResult.expiresAt);
       }
@@ -1974,7 +1977,7 @@ export function registerCheckoutRoutes(server, ctx) {
     // 7. Enqueue or activate new session if UPI
     let queueResult = { status: newSession.status, queuePosition: 0, expiresAt: null };
     if (newSession.receivingAccountId && (String(newSession.method).toUpperCase() === 'UPI' || !newSession.method)) {
-      queueResult = ctx.queueEngine.enqueueOrActivate(newSession.id, newSession.receivingAccountId);
+      queueResult = ctx.queueEngine.enqueueOrActivate(newSession.id, newSession.receivingAccountId, ctx.timingEngine?.activeDurationMs || 300000);
       if (queueResult.expiresAt && ctx.timingEngine) {
         ctx.timingEngine.startActiveTimer(newSession.id, queueResult.expiresAt);
       }
