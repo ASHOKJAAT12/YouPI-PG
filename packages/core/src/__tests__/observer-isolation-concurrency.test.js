@@ -190,6 +190,7 @@ describe('Phase 9C: Observer Isolation & Concurrency Hardening Suite', () => {
   test('Fix 1.7: Android observer device authentication scopes to merchant account and prevents spoofing', async () => {
     // Unregistered device header
     const badDeviceRes = await httpReq('GET', '/api/v1/pollers/active-window', {
+      token: TEST_OBSERVER_TOKEN,
       headers: { 'X-Device-Id': 'non-existent-device-id' }
     });
     assert.equal(badDeviceRes.status, 403);
@@ -197,6 +198,7 @@ describe('Phase 9C: Observer Isolation & Concurrency Hardening Suite', () => {
 
     // Registered device header: auto-binds to merchantA's accountA
     const goodDeviceRes = await httpReq('GET', '/api/v1/pollers/active-window', {
+      token: TEST_OBSERVER_TOKEN,
       headers: { 'X-Device-Id': deviceA.id }
     });
     assert.equal(goodDeviceRes.status, 200);
@@ -206,7 +208,7 @@ describe('Phase 9C: Observer Isolation & Concurrency Hardening Suite', () => {
     const spoofRes = await httpReq(
       'GET',
       `/api/v1/pollers/active-window?receivingAccountId=${accountB.id}`,
-      { headers: { 'X-Device-Id': deviceA.id } }
+      { token: TEST_OBSERVER_TOKEN, headers: { 'X-Device-Id': deviceA.id } }
     );
     assert.equal(spoofRes.status, 403);
     assert.equal(spoofRes.body.code, 'CROSS_ACCOUNT_FORBIDDEN');
@@ -252,6 +254,9 @@ describe('Phase 9C: Observer Isolation & Concurrency Hardening Suite', () => {
   // Fix 3: Single-Active-Session DB Invariant (idx_single_active_session)
   // --------------------------------------------------------------------------
   test('Fix 3.1: Database unique index idx_single_active_session rejects 2nd ACTIVE session on same account', () => {
+    // Clean up any sessions left by prior tests on this account
+    db.run(`DELETE FROM payment_sessions WHERE receiving_account_id = ?`, [accountA.id]);
+
     const active1 = sessionRepo.create({
       merchantId: merchantA.id,
       receivingAccountId: accountA.id,
@@ -284,6 +289,10 @@ describe('Phase 9C: Observer Isolation & Concurrency Hardening Suite', () => {
   });
 
   test('Fix 3.2: Concurrent ACTIVE sessions on DIFFERENT receiving accounts are permitted', () => {
+    // Clean up any sessions left by prior tests on this account
+    db.run(`DELETE FROM payment_sessions WHERE receiving_account_id = ?`, [accountA.id]);
+    db.run(`DELETE FROM payment_sessions WHERE receiving_account_id = ?`, [accountB.id]);
+
     const activeA = sessionRepo.create({
       merchantId: merchantA.id,
       receivingAccountId: accountA.id,
@@ -314,6 +323,9 @@ describe('Phase 9C: Observer Isolation & Concurrency Hardening Suite', () => {
   });
 
   test('Fix 3.3: acquireSlotAtomic queues 2nd request gracefully when slot is occupied', () => {
+    // Clean up any sessions left by prior tests on this account
+    db.run(`DELETE FROM payment_sessions WHERE receiving_account_id = ?`, [accountA.id]);
+
     const session1 = sessionRepo.create({
       merchantId: merchantA.id,
       receivingAccountId: accountA.id,
@@ -350,6 +362,9 @@ describe('Phase 9C: Observer Isolation & Concurrency Hardening Suite', () => {
   // Fix 4: Concurrency & Lock Contention Resilience
   // --------------------------------------------------------------------------
   test('Fix 4.1: Concurrent acquireSlotAtomic race results in 1 ACTIVE and remaining QUEUED with 0 errors', () => {
+    // Clean up any sessions left by prior tests on this account
+    db.run(`DELETE FROM payment_sessions WHERE receiving_account_id = ?`, [accountA.id]);
+
     const concurrentCount = 5;
     const sessionIds = [];
 

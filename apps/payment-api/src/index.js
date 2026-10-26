@@ -133,13 +133,6 @@ export function createPaymentApp(customDb = null, options = {}) {
     eventEmitter
   });
 
-  const webhookEngine = new WebhookEngine({
-    db,
-    merchantRepo,
-    sessionRepo,
-    maxRetries: Number(process.env.WEBHOOK_MAX_RETRIES || 5)
-  });
-
   const server = new HttpServer();
   server.use(authGuard);
   let checkoutBaseUrl = process.env.CHECKOUT_PUBLIC_URL

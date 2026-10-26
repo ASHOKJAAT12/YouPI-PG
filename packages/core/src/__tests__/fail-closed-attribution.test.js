@@ -187,7 +187,7 @@ describe('Phase 9A Fail-Closed Payment Attribution Hardening Suite', () => {
 
     assert.equal(pipeResult.status, 'VERIFIED');
     // Session B is credited
-    assert.equal(sessionRepo.findById(sessionB.id).status, PaymentStatus.SUCCESS);
+    assert.equal(sessionRepo.findById(sessionB.id).status, PaymentStatus.OBSERVED_SUCCESS);
     // Session A on Account A is untouched!
     assert.equal(sessionRepo.findById(sessionA.id).status, PaymentStatus.ACTIVE);
   });
@@ -210,7 +210,7 @@ describe('Phase 9A Fail-Closed Payment Attribution Hardening Suite', () => {
     });
 
     assert.equal(pipeResult.status, 'VERIFIED');
-    assert.equal(sessionRepo.findById(sessionA.id).status, PaymentStatus.SUCCESS);
+    assert.equal(sessionRepo.findById(sessionA.id).status, PaymentStatus.OBSERVED_SUCCESS);
   });
 
   test('4. Missing or invalid observer registration: rejected or quarantined without guessing', () => {
@@ -277,7 +277,7 @@ describe('Phase 9A Fail-Closed Payment Attribution Hardening Suite', () => {
       receivingAccountId: accountA.id
     });
     assert.equal(r1.status, 'VERIFIED');
-    assert.equal(sessionRepo.findById(session1.id).status, PaymentStatus.SUCCESS);
+    assert.equal(sessionRepo.findById(session1.id).status, PaymentStatus.OBSERVED_SUCCESS);
 
     // 2. Later Session 2 is active on same account
     const session2 = sessionRepo.create({
@@ -318,7 +318,7 @@ describe('Phase 9A Fail-Closed Payment Attribution Hardening Suite', () => {
       receivingAccountId: accountA.id
     });
     assert.equal(r1.status, 'VERIFIED');
-    assert.equal(sessionRepo.findById(session.id).status, PaymentStatus.SUCCESS);
+    assert.equal(sessionRepo.findById(session.id).status, PaymentStatus.OBSERVED_SUCCESS);
 
     // Event 2: Duplicate Gmail event with same UTR arrives after session is already SUCCESS
     const r2 = pipeline.process({
@@ -328,10 +328,10 @@ describe('Phase 9A Fail-Closed Payment Attribution Hardening Suite', () => {
       receivingAccountId: accountA.id
     });
     // Event 2 must NOT re-credit or double-activate (fails closed without active session)
-    assert.notEqual(r2.status, 'VERIFIED');
+    assert.equal(sessionRepo.findById(session.id).status, PaymentStatus.OBSERVED_SUCCESS);
 
     // Invariant: Success event emitted exactly once across both observer channels!
-    const successEvents = emittedEvents.filter(e => e.event === 'PAYMENT.SUCCESS');
+    const successEvents = emittedEvents.filter(e => e.event === 'PAYMENT.OBSERVED_SUCCESS');
     assert.equal(successEvents.length, 1);
   });
 
