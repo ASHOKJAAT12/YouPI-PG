@@ -472,8 +472,18 @@
         if (badge) badge.innerText = '+91 ' + currentAuthMobile;
         const otpInput = document.getElementById('authOtpInput');
         if (otpInput) {
-          otpInput.value = '';
+          if (lastReceivedDevOtp) {
+            otpInput.value = lastReceivedDevOtp;
+          } else {
+            otpInput.value = '';
+          }
           setTimeout(() => otpInput.focus(), 50);
+        }
+        if (lastReceivedDevOtp) {
+          const banner = document.getElementById('authOtpGreeting');
+          if (banner) {
+            banner.innerHTML = `Enter the 6-digit WhatsApp OTP <span style="display:inline-block; background:#ecfdf5; color:#059669; padding:2px 8px; border-radius:6px; font-size:12px; font-weight:700; border:1px solid #a7f3d0; margin-left:6px;">Dev OTP: ${lastReceivedDevOtp}</span>:`;
+          }
         }
         startOtpCooldown(30);
       }
@@ -564,7 +574,7 @@
           }
 
           goToAuthStep('otp');
-          showOptionToast('OTP sent to your WhatsApp number!');
+          showOptionToast(lastReceivedDevOtp ? `Dev OTP: ${lastReceivedDevOtp} (Auto-filled)` : 'OTP sent to your WhatsApp number!');
         } else if (savedMatch) {
           // Known customer in browser saved accounts -> dispatch OTP directly with saved profile
           currentAuthName = savedMatch.name || 'Customer';
@@ -589,7 +599,7 @@
           }
 
           goToAuthStep('otp');
-          showOptionToast('OTP sent to your WhatsApp number!');
+          showOptionToast(lastReceivedDevOtp ? `Dev OTP: ${lastReceivedDevOtp} (Auto-filled)` : 'OTP sent to your WhatsApp number!');
         } else {
           // New customer -> prompt for name and email
           goToAuthStep('signup');
@@ -648,7 +658,7 @@
             greetingEl.innerHTML = `Hello <strong>${escapeHtml(name)}</strong>! Enter the 6-digit WhatsApp OTP:`;
           }
           goToAuthStep('otp');
-          showOptionToast('WhatsApp verification code sent!');
+          showOptionToast(lastReceivedDevOtp ? `Dev OTP: ${lastReceivedDevOtp} (Auto-filled)` : 'WhatsApp verification code sent!');
         } else {
           showOptionToast(data.error || 'Failed to send WhatsApp OTP.');
         }
@@ -816,7 +826,7 @@
         if (badge) badge.innerText = '+91 ' + clean;
 
         goToAuthStep('otp');
-        showOptionToast('WhatsApp verification code sent!');
+        showOptionToast(lastReceivedDevOtp ? `Dev OTP: ${lastReceivedDevOtp} (Auto-filled)` : 'WhatsApp verification code sent!');
       } catch (err) {
         console.error('[Select Saved Account Error]:', err);
         showOptionToast('Network error sending WhatsApp OTP.');
@@ -1976,36 +1986,10 @@
         };
       }
 
-      // 3. Pre-Gateway Customer Authentication Gate (Preserves identity up to 1 week)
+      // Direct Payment Mode: WhatsApp OTP login process removed
       if (data.customer) {
         activeCustomer = data.customer;
-      } else if (!activeCustomer) {
-        const preserved = getPreservedIdentity();
-        if (preserved && preserved.customer) {
-          activeCustomer = preserved.customer;
-          activeToken = preserved.token || activeToken;
-        }
-      }
-      const hasCustomer = Boolean(data.customer || activeCustomer);
-
-      if (!hasCustomer) {
-        setGatewayAuthMode(true);
-        const stepMob = document.getElementById('authStepMobile');
-        const isAlreadyOnMobile = stepMob && !stepMob.hidden;
-        if (!currentAuthStep || (currentAuthStep === 'mobile' && !isAlreadyOnMobile)) {
-          goToAuthStep('mobile');
-        }
-        renderSavedAccountsUI();
-        return;
-      }
-
-      // Authenticated Customer
-      if (activeCustomer) {
         updateCustomerDisplay(activeCustomer);
-        // Automatically bind customer to the payment session if session is INITIATED or unbound
-        if (activeToken && PAYMENT_ID && (!data.customer || data.status === 'INITIATED')) {
-          window.autoBindCustomerToSession(activeCustomer.id, activeToken);
-        }
       }
       setGatewayAuthMode(false);
 

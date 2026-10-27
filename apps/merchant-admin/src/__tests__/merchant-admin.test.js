@@ -1,6 +1,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
+import vm from 'node:vm';
 import { Database } from '@youpi/db';
 import { getAdminToken } from '@youpi/common';
 import { startAdminServer } from '../index.js';
@@ -92,5 +93,30 @@ describe('Merchant Admin Integration Tests', () => {
     assert.ok(html.includes('Security Engine v2 &bull; ApexMerchant Suite'));
 
     process.env = { ...origEnv };
+  });
+
+  test('all inline <script> blocks in admin.html parse cleanly without syntax errors and declare switchSection', () => {
+    const adminServer = new AdminServer({ db: testDb });
+    const html = adminServer.renderHtml();
+
+    const scriptRegex = /<script\b[^>]*>([\s\S]*?)<\/script>/gi;
+    let match;
+    let scriptIndex = 0;
+    let foundSwitchSection = false;
+
+    while ((match = scriptRegex.exec(html)) !== null) {
+      scriptIndex++;
+      const code = match[1];
+      assert.doesNotThrow(() => {
+        new vm.Script(code, { filename: `admin_script_${scriptIndex}.js` });
+      }, `Syntax error encountered in script block ${scriptIndex}`);
+
+      if (code.includes('function switchSection(')) {
+        foundSwitchSection = true;
+      }
+    }
+
+    assert.ok(scriptIndex >= 2, 'Expected at least 2 inline script blocks in admin.html');
+    assert.ok(foundSwitchSection, 'Expected function switchSection to be defined in one of the script blocks');
   });
 });

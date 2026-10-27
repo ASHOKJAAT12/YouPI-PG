@@ -244,5 +244,4 @@ describe('Checkout Portal Integration Tests', () => {
       assert.equal(openDivs, closeDivs, `ypg-pc-workspace must have balanced <div> (${openDivs}) and </div> (${closeDivs}) tags so ypgStickyFooter is not ejected as a 3rd flex column on macOS/iOS`);
     });
     });
-  });
 });

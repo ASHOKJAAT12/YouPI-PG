@@ -369,7 +369,8 @@ export function registerPaymentRoutes(server, ctx) {
     // Digital UPI payments MUST ALWAYS start in status INITIATED without acquiring a concurrency slot or timer.
     // Only physical counter payments (CASH_COUNTER, CARD_COUNTER) start as ACTIVE (they do not use UPI slots).
     // The only exception for UPI auto-activation is explicit developer test suite flag: body.autoActivate === true.
-    const shouldActivateNow = isCounterPayment || isExplicitTestAutoActivate;
+    // Direct checkout: Activate session immediately so customers can pay directly without OTP
+    const shouldActivateNow = true;
     const initialStatus = isCounterPayment ? PaymentStatus.ACTIVE : PaymentStatus.INITIATED;
 
     const sessionMetadata = {

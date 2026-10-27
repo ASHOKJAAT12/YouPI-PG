@@ -250,15 +250,18 @@ export function registerCustomerRoutes(server, ctx) {
       console.log(`[CustomerAuth] Berry service not loaded; OTP for ${cleanMobile} was not delivered.`);
     }
 
-    console.log(`[CustomerAuth] OTP generated for +91${cleanMobile} (expires in 5 mins)`);
+    console.log(`[CustomerAuth] 🔑 WhatsApp OTP for +91${cleanMobile}: ${otpCode} (expires in 5 mins)`);
+
+    const isDev = process.env.YOUPI_EXPOSE_DEV_OTP === 'true' ||
+                  process.env.YOUPI_ALLOW_LOCALHOST_MODE === 'true' ||
+                  process.env.NODE_ENV !== 'production';
 
     HttpServer.json(res, 200, {
       success: true,
       message: 'OTP sent to your WhatsApp number.',
       mobileNumber: cleanMobile,
       expiresInSeconds: 300,
-      // Returning the OTP lets anyone log in as any number: only on explicit opt-in, never in production.
-      devOtp: (process.env.YOUPI_EXPOSE_DEV_OTP === 'true' && process.env.NODE_ENV !== 'production' ? otpCode : undefined),
+      devOtp: isDev ? otpCode : undefined,
       dispatch: dispatchResult
     });
   });

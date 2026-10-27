@@ -400,6 +400,25 @@ export function createPaymentApp(customDb = null, options = {}) {
       recoveryStats
     });
   };
+  server.get('/', (req, res) => {
+    HttpServer.json(res, 200, {
+      service: 'YOUPI Payment Core API',
+      status: 'UP',
+      version: '1.0.0',
+      message: 'This is the headless Payment Core REST API server. Open the links below for UI dashboards.',
+      endpoints: {
+        health: '/health',
+        apiHealth: '/api/v1/health',
+        payments: '/api/v1/payments'
+      },
+      dashboards: {
+        merchantAdmin: 'http://localhost:6001',
+        controlCenter: 'http://localhost:8090',
+        checkoutPortal: 'http://localhost:7000',
+        storefront: 'http://localhost:5173'
+      }
+    });
+  });
   server.get('/health', healthHandler);
   server.get('/api/v1/health', healthHandler);
 

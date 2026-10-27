@@ -170,6 +170,7 @@ function sanitizePublicBranding(raw = {}) {
  * Recovery: the next create succeeds once a heartbeat is fresh. In-flight sessions are not cancelled.
  */
 export function observerHealthEnforced() {
+  if (process.env.YOUPI_ALLOW_LOCALHOST_MODE === 'true' || process.env.YOUPI_ENFORCE_OBSERVER_HEALTH === 'false') return false;
   if (process.env.YOUPI_ENFORCE_OBSERVER_HEALTH === 'true') return true;
   if (process.env.NODE_ENV === 'test') return false;
   return true;
@@ -245,6 +246,13 @@ export async function checkUpiServerHealth(ctx, enabledMethods = [], sellingMode
   let gmailHealthy = false;
   let smsReason = 'SMS gateway disconnected';
   let gmailReason = 'Gmail OAuth unconfigured';
+
+  if (process.env.YOUPI_ALLOW_LOCALHOST_MODE === 'true' || process.env.YOUPI_ENFORCE_OBSERVER_HEALTH === 'false') {
+    smsHealthy = true;
+    smsReason = 'Localhost development mode (observers simulated active)';
+    gmailHealthy = true;
+    gmailReason = 'Localhost development mode (observers simulated active)';
+  }
 
   // 1. Check SMS Gateway (Android app or Google Messages)
   try {
@@ -508,6 +516,21 @@ export function registerCheckoutRoutes(server, ctx) {
     }
     if (!receivingAccount && session.method === 'UPI') {
       receivingAccount = ctx.accountRepo.findActiveForMerchant(session.merchantId);
+    }
+
+    // Direct checkout: if session is still INITIATED, activate immediately so UPI QR is ready
+    if (session.status === PaymentStatus.INITIATED) {
+      const activeMerchantAcc = ctx.accountRepo ? ctx.accountRepo.findActiveForMerchant(session.merchantId) : null;
+      const targetAccountId = session.receivingAccountId || activeMerchantAcc?.id || snapshot?.id;
+      if (targetAccountId) {
+        const queueResult = ctx.queueEngine.enqueueOrActivate(session.id, targetAccountId, ctx.timingEngine?.activeDurationMs || 300000);
+        if (queueResult.expiresAt) {
+          ctx.timingEngine.startActiveTimer(session.id, queueResult.expiresAt);
+        }
+        session.status = queueResult.status;
+        session.queuePosition = queueResult.queuePosition;
+        session.expiresAt = queueResult.expiresAt;
+      }
     }
 
     // Invariant: Prefer immutable session snapshot VPA to prevent live VPA mutations from altering open checkout sessions (Issue #27)

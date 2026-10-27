@@ -74,7 +74,7 @@ export class ProcessManager extends EventEmitter {
         id: 'coin-wallet-store',
         name: 'YOUPI Showcase Store (Demo)',
         script: path.join(rootDir, 'apps/coin-wallet-store/src/index.js'),
-        port: Number(process.env.COIN_STORE_PORT || 5000),
+        port: Number(process.env.COIN_STORE_PORT || process.env.COIN_WALLET_STORE_PORT || 5005),
         healthPath: '/health',
         child: null,
         status: 'STOPPED',
@@ -265,6 +265,10 @@ export class ProcessManager extends EventEmitter {
       }
       if (svc.id === 'sms-observer' && observerChannel === 'GMAIL_ONLY') {
         this.appendLog(svc.id, 'system', 'Skipping SMS Observer (YOUPI_OBSERVER_CHANNEL=GMAIL_ONLY)');
+        continue;
+      }
+      if (svc.id === 'coin-wallet-store' && process.env.ENABLE_DEMO_STORE !== 'true') {
+        this.appendLog(svc.id, 'system', 'Skipping Demo Store (Port 5000 reserved for Panch Sattva)');
         continue;
       }
       try {
